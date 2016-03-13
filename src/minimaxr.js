@@ -1,34 +1,32 @@
 import 'babel-polyfill';
 
-var minimum_search_depth = 5;
-var maximum_search_depth = 9;
-var use_progressive_deepening = true;
-var use_quiescence_search = true;
-var use_alpha_beta_pruning = true;
-var use_analysis_cache = true;
-var use_singular_extensions = false;
-var analysis_cache_size = 4000;
-var min_analysis_cache_depth = 3;
-var use_advanced_analysis_cache_aging = false;
-var use_opponent_modeling = true;
-var quiescence_extension_depth = 2; //the number of search levels to add when a quiescence search extension is required
-var minimum_position_value = -999;
-var maximum_position_value = 999;
-var minimum_man_count = 2;
-var initial_man_count = 20;
+const minimumSearchDepth = 5;
+const maximumSearchDepth = 9;
+const useProgressiveDeepening = true;
+const useQuiescenceSearch = true;
+const useAlphaBetaPruning = true;
+const useAnalysisCache = true;
+const useSingularExtensions = false;
+const analysisCacheSize = 4000;
+const minAnalysisCacheDepth = 3;
+const useAdvancedAnalysisCacheAging = false;
+const useOpponentModeling = true;
+const quiescenceExtensionDepth = 2; //the number of search levels to add when a quiescence search extension is required
+const minimumPositionValue = -999;
+const maximumPositionValue = 999;
+const minimumManCount = 2;
+const initialManCount = 20;
 
-var NORTH_EAST = 0;
-var SOUTH_EAST = 1;
-var SOUTH_WEST = 2;
-var NORTH_WEST = 3;
+const northEast = 0;
+const southEast = 1;
+const southWest = 2;
+const northWest = 3;
 
-var analysis_cache = new mxAnalysisCache();
+var AnalysisCache = new MxAnalysisCache();
 
-function mxAnalysisCache()
+function MxAnalysisCache()
 {
-    var self = this;
-
-	this.Nodes = new Array();	
+    this.Nodes = new Array();	
 	
 	this.Cursor = 0;
 	this.RetrieveAnalysis = function(player, depth, position)
@@ -36,7 +34,7 @@ function mxAnalysisCache()
 		for (var n in this.Nodes)
 		{
 			var entry = this.Nodes [n];
-			if (entry.Player != player) continue;
+			if (entry.Player !== player) continue;
 			if (entry.Depth < depth) continue;
 			if (!entry.Position.Equals(position)) continue;
 			return entry.Analysis;
@@ -49,20 +47,20 @@ function mxAnalysisCache()
 		myentry.Depth = depth;
 		myentry.Position = position.Clone();
 		myentry.Analysis = analysis;
-		if (this.Cursor >= analysis_cache_size) this.Cursor=0;
+		if (this.Cursor >= analysisCacheSize) this.Cursor=0;
 		this.Nodes[this.Cursor] = myentry;
 		this.Cursor++;
 	}	
 }
 
-function mxPositionAnalysis(dynamicValue, staticValue, potentialValue, bestMove)
+function MxPositionAnalysis(dynamicValue, staticValue, potentialValue, bestMove)
 {
 	this.DynamicValue = dynamicValue;
 	this.StaticValue = staticValue;
 	this.PotentialValue = potentialValue;
 	this.BestMove = bestMove;
 }
-function mxPosition()
+function MxPosition()
 {
 	//create the initial board
 	this.Nodes = new Array();	
@@ -144,20 +142,21 @@ function mxPosition()
 			return legalMoves;
 		}
 		catch (err) {alert('LegalMovesX Error: '+err); }
-	};
+	}
 	this.LegalMoves = function(player)
 	{
 		try
 		{
 			var legalMoves = this.LegalMovesX(player, null, null, true);
-			if (legalMoves.length == 0) legalMoves = this.LegalMovesX(player, null, null, false);
+			if (legalMoves.length === 0) 
+			    legalMoves = this.LegalMovesX(player, null, null, false);
 			return legalMoves;	
 		}
 		catch (err)	{alert('Legal Moves generation error: '+err); }
-	};
+	}
 	this.Clone = function()
 	{
-		var p = new mxPosition;
+		var p = new MxPosition;
 		for (var s=0; s<100; s=NextSquare(s)) {p.Nodes[s] = this.Nodes[s];}
 		return p;		
 	};
@@ -166,26 +165,26 @@ function mxPosition()
 		for (var s=0; s<100; s=NextSquare(s)) { if (pos.Nodes[s] != this.Nodes[s]) return false;}
 		return true;
 	};
-	this.Analysis = function Analysis(player, depth, parentBestValue, parentDepth, untilQuiescent)
+	this.Analysis = function(player, depth, parentBestValue, parentDepth, untilQuiescent)
     { 	
     	try
     	{
     		var legalMoves = this.LegalMoves(player);
-    		if (legalMoves.length == 0) return new mxPositionAnalysis(minimum_position_value, minimum_position_value, minimum_position_value, null);
-    		if (depth >= min_analysis_cache_depth && use_analysis_cache)
+    		if (legalMoves.length === 0) return new MxPositionAnalysis(minimumPositionValue, minimumPositionValue, minimumPositionValue, null);
+    		if (depth >= minAnalysisCacheDepth && useAnalysisCache)
     		{
-    			var cachedAnalysis = analysis_cache.RetrieveAnalysis(player, depth, this);
+    			var cachedAnalysis = AnalysisCache.RetrieveAnalysis(player, depth, this);
     			if (cachedAnalysis != null) return cachedAnalysis;
     		}
-    		if (depth == 0)
+    		if (depth === 0)
     		{
-				if (!(untilQuiescent && parentDepth < maximum_search_depth && CaptureCount(legalMoves[0]) > 0)) 
-	    			return new mxPositionAnalysis(this.StaticValue(player), this.StaticValue(player), minimum_position_value, legalMoves[0]);
+				if (!(untilQuiescent && parentDepth < maximumSearchDepth && CaptureCount(legalMoves[0]) > 0)) 
+	    			return new MxPositionAnalysis(this.StaticValue(player), this.StaticValue(player), minimumPositionValue, legalMoves[0]);
 	    		else
-	    			depth = quiescence_extension_depth;			
+	    			depth = quiescenceExtensionDepth;			
     		}    	
-    		var bestValue = maximum_position_value;
-    		var bestPotentialValue = maximum_position_value;
+    		var bestValue = maximumPositionValue;
+    		var bestPotentialValue = maximumPositionValue;
     		var bestChildMove = null;
     		var myPotentialValue = 0;
     		
@@ -203,45 +202,46 @@ function mxPosition()
     				bestChildMove = legalMoves[m];
     				hit = true;
     			}
-    			if ((-bestValue >= parentBestValue) && use_alpha_beta_pruning) break;    
+    			if ((-bestValue >= parentBestValue) && useAlphaBetaPruning) break;    
     		}
-    		if (hit==false) alert('not hit');
-    		var myAnalysis = new mxPositionAnalysis(-bestValue, this.StaticValue(player), -myPotentialValue, bestChildMove);
-    		if (use_analysis_cache) analysis_cache.CacheAnalysis(player, depth, this, myAnalysis);
+    		if (hit === false) 
+    		    console.log('not hit');
+    		var myAnalysis = new MxPositionAnalysis(-bestValue, this.StaticValue(player), -myPotentialValue, bestChildMove);
+    		if (useAnalysisCache) AnalysisCache.CacheAnalysis(player, depth, this, myAnalysis);
     		return myAnalysis;
     	}
     	catch (err) {alert ('Error performing analysis: '+err); }
-	};
+	}
 
-    this.ValueProfile = function valueProfile(player)
+    this.ValueProfile = function(player)
 	{
 		var valueProfile = new Array();
-		for (var d=0; d<minimum_search_depth; d++)
+		for (var d=0; d<minimumSearchDepth; d++)
 		{
-			valueProfile[d] = this.DynamicValue(player, d, maximum_position_value, 0, false);			
+			valueProfile[d] = this.DynamicValue(player, d, maximumPositionValue, 0, false);			
 		}
-		valueProfile[minimum_search_depth] = this.DynamicValue(player, d, maximum_position_value, 0, use_quiescence_search);			
+		valueProfile[minimumSearchDepth] = this.DynamicValue(player, d, maximumPositionValue, 0, useQuiescenceSearch);			
 		return valueProfile;
-    };
+    }
 
-	this.IsValidSquare = function isValidSquare(sq)
+	this.IsValidSquare = function(sq)
 	{
 		try
 		{
 			var ssq = sq.toString();
-			if (ssq.length == 1) ssq = '0'+ssq;
-			if (ssq.length != 2) return false;
+			if (ssq.length === 1) ssq = '0'+ssq;
+			if (ssq.length !== 2) return false;
 			var row = parseInt(ssq.charAt(0));
 			var col = parseInt(ssq.charAt(1));
-			return ((row%2==0 && col%2==0) || (row%2==1 && col%2==1));
+			return ((row%2 === 0 && col%2 === 0) || (row%2 === 1 && col%2 === 1));
 		}
 		catch (err) {alert('IsValidSquare error: '+err); }
-	};
-	this.IsFreeSquare = function isFreeSquare(sq)
+	}
+	this.IsFreeSquare = function(sq)
 	{
-		return (this.IsValidSquare(sq) && this.Nodes[sq] == 0);
-	};
-	this.ManCount = function manCount(player)
+		return (this.IsValidSquare(sq) && this.Nodes[sq] === 0);
+	}
+	this.ManCount = function(player)
 	{
 		var c=0;
 	    for (var sq=0; sq<100; sq=NextSquare(sq))
@@ -250,11 +250,11 @@ function mxPosition()
 	    }
 	    return c;
 	};	
-	this.StaticValue = function staticValue(player)
+	this.StaticValue = function(player)
     {
     	return this.ManCount(player) - this.ManCount(-player); 
-    };
-    this.GetCapture = function getCapture(square, direction)
+    }
+    this.GetCapture = function(square, direction)
 	{
 		try
 		{
@@ -275,7 +275,7 @@ function mxPosition()
 		}
 		catch (err) {alert('GetCapture error'+err); }
 	};
-	this.ExecuteMove = function executeMove(move)
+	this.ExecuteMove = function(move)
 	{
 		try
 		{
@@ -283,20 +283,20 @@ function mxPosition()
 		}
 		catch (err){ alert('ExecuteMove Error: '+ err); }
 	};
-	this.UndoMove = function undoMove(move)
+	this.UndoMove = function(move)
 	{
 		try
 		{
 			for (var x=0; x < move.length; x+=3) {this.Nodes[move[x]] = move[x+1];}
 		}
 		catch (err){ alert('UndoMove Error: '+ err); }
-	};
+	}
 	this.AdvanceTerminalSquare = function advanceTerminalSquare(move, dir)
 	{
 		try
 		{
 			var finalMan = move[move.length-1];
-			//if (this.Nodes[move[move.length-3]] != final_man) alert('AdvanceTerminalSquare problem');
+			if (this.Nodes[move[move.length-3]] !== finalMan) alert('AdvanceTerminalSquare problem');
 			if (!IsKing(finalMan)) return false;
 			if (this.IsFreeSquare(NextSquare(TerminalSquare(move),dir,1)))
 			{
@@ -309,34 +309,32 @@ function mxPosition()
 				return false;
 		}
 		catch (err) {alert('AdvanceTerminalSquare error'+err); }
-	};
+	}
 }
-function mxGame()
-{
-   this.MoveHistory = new Array();
-	this.Position = new mxPosition();
-	this.Turn = -1;
-	this.BestMove = function bestMove()
-	{
-		return this.Position.Analysis(this.Turn, minimum_search_depth, maximum_position_value, 0, use_quiescence_search).BestMove;
 
-		
-	};
-	this.TryAcceptMove = function tryAcceptMove(startSquare, endSquare)
+function MxGame() {
+    this.MoveHistory = new Array();
+	this.Position = new MxPosition();
+	this.Turn = -1;
+
+	this.BestMove = function()
+	{
+		return this.Position.Analysis(this.Turn, minimumSearchDepth, maximumPositionValue, 0, useQuiescenceSearch).BestMove;
+	}
+	this.TryAcceptMove = function(startSquare, endSquare)
 	{
 		var legalMoves = this.Position.LegalMoves(this.Turn);
 		for (var m in legalMoves)
 		{
 			var move = legalMoves[m];
-			if (move[0] == startSquare && move[move.length-3] == endSquare)
-	    	{
-	    		this.Position.ExecuteMove(move);
-            this.MoveHistory[this.MoveHistory.length] = move;
-				return true;
-			}
+		    if (move[0] === startSquare && move[move.length - 3] === endSquare) {
+		        this.Position.ExecuteMove(move);
+		        this.MoveHistory[this.MoveHistory.length] = move;
+		        return true;
+		    }
 		}
 		return false;				
-	};
+	}
 }
 function NormalizeMove(move) 
 {
@@ -373,13 +371,14 @@ function NextSquare(sq, dir, steps)
 {
 	try
 	{
-		if (sq==null) sq=0;	if (steps==null) steps=1;
+	    if (sq==null) sq=0;
+	    if (steps==null) steps=1;
 		switch (dir)
 		{
-			case NORTH_EAST: return sq+9*steps;
-			case SOUTH_EAST: return sq-11*steps;
-			case SOUTH_WEST: return sq-9*steps;
-			case NORTH_WEST: return sq+11*steps;
+			case northEast: return sq+9*steps;
+			case southEast: return sq-11*steps;
+			case southWest: return sq-9*steps;
+			case northWest: return sq+11*steps;
 			default: 
 			{
 				switch (sq.toString().charAt(sq.toString().length-1))
@@ -396,10 +395,10 @@ function NextSquare(sq, dir, steps)
 function CaptureCount(move){ return (move.length/3) - 2; }
 function IsKing(man){return (man*man > 1);}
 function AreComrades(man1, man2) { return (man1*man2 > 0); }
-function OppositeDirection(direction){ return (direction+2)%4;}
+function OppositeDirection(direction) { return (direction + 2) % 4; }
 function NextDirection(direction) { return (direction+1)%4; }
 function PreviousDirection(direction) { return OppositeDirection(NextDirection(direction)); }
-function IsLegalDirection(player, dir){	return ((player === 1)?(dir === NORTH_EAST || dir === NORTH_WEST): (dir === SOUTH_EAST || dir === SOUTH_WEST)); }
+function IsLegalDirection(player, dir){	return ((player === 1)?(dir === northEast || dir === northWest): (dir === southEast || dir === southWest)); }
 
 function Stealth(valueProfile)
 {
@@ -416,4 +415,4 @@ function Stealth(valueProfile)
 //}
 
 
-export default mxGame;
+export default MxGame;
