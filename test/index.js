@@ -50,7 +50,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
     function createView() {
         try {
             //setting turn status
-            document.getElementById('imgTurn').src = game.Turn === 1 ? 'assets/white-pawn.PNG' : 'assets/black-pawn.PNG';
+            document.getElementById('imgTurn').src = game.Turn === 1 ? 'assets/beige-pawn.PNG' : 'assets/brown-pawn.PNG';
 
             //creating move history view
             (0, _jquery2.default)('#tblMoves').empty();
@@ -87,7 +87,8 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
                 for (var col = 0; col < 10; col++) {
                     var td = document.createElement("td");
                     var validSq = row % 2 === 0 && col % 2 === 0 || row % 2 === 1 && col % 2 === 1;
-                    td.setAttribute("bgColor", validSq ? "#FFFF77" : "#FFCC00");
+                    td.setAttribute("bgColor", validSq ? "whitesmoke" : "silver");
+                    //td.setAttribute("bgColor", validSq ? "#FFFF77" : "#FFCC00");
                     td.style.height = "30px";
                     td.style.width = "30px";
                     td.style.fontSize = "8px";
@@ -102,22 +103,22 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
                             switch (man.toString()) {
                                 case "1":
                                     {
-                                        imgSrc = "assets/white-pawn.PNG";
+                                        imgSrc = "assets/beige-pawn.PNG";
                                         break;
                                     }
                                 case "10":
                                     {
-                                        imgSrc = "assets/white-king.PNG";
+                                        imgSrc = "assets/beige-king.PNG";
                                         break;
                                     }
                                 case "-1":
                                     {
-                                        imgSrc = "assets/black-pawn.PNG";
+                                        imgSrc = "assets/brown-pawn.PNG";
                                         break;
                                     }
                                 case "-10":
                                     {
-                                        imgSrc = "assets/black-king.PNG";
+                                        imgSrc = "assets/brown-king.PNG";
                                         break;
                                     }
                                 default:
