@@ -1,39 +1,30 @@
 import 'babel-polyfill';
 
-const minimumSearchDepth = 5;
-const maximumSearchDepth = 9;
-const useProgressiveDeepening = true;
-const useQuiescenceSearch = true;
-const useAlphaBetaPruning = true;
-const useAnalysisCache = true;
-const useSingularExtensions = false;
-const analysisCacheSize = 4000;
-const minAnalysisCacheDepth = 3;
-const useAdvancedAnalysisCacheAging = false;
-const useOpponentModeling = true;
-const quiescenceExtensionDepth = 2; //the number of search levels to add when a quiescence search extension is required
-const minimumPositionValue = -999;
-const maximumPositionValue = 999;
-const minimumManCount = 2;
-const initialManCount = 20;
+const MIN_SEARCH_DEPTH = 5;
+const MAX_SEARCH_DEPTH = 9;
+const USE_QUIESCENCE_SEARCH = true;
+const USE_ALPHA_BETA_PRUNING = true;
+const USE_ANALYSIS_CACHE = true;
+const ANALYSIS_CACHE_SIZE = 4000;
+const MIN_ANALYSIS_CACHE_DEPTH = 3;
+const MIN_POSITION_VALUE = -999;
+const MAX_POSITION_VALUE = 999;
+const QUIESCENCE_EXTENSION_DEPTH = 2;
 
-const northEast = 0;
-const southEast = 1;
-const southWest = 2;
-const northWest = 3;
-
-var AnalysisCache = new MxAnalysisCache();
+const NORTH_EAST = 0;
+const SOUTH_EAST = 1;
+const SOUTH_WEST = 2;
+const NORTH_WEST = 3;
 
 function MxAnalysisCache()
 {
-    this.Nodes = new Array();	
-	
-	this.Cursor = 0;
-	this.RetrieveAnalysis = function(player, depth, position)
+    this.Entries = [];	
+    this.Cursor = 0;
+
+	this.Get = function(player, depth, position)
 	{
-		for (var n in this.Nodes)
+	    for (let entry of this.Entries)
 		{
-			var entry = this.Nodes [n];
 			if (entry.Player !== player) continue;
 			if (entry.Depth < depth) continue;
 			if (!entry.Position.Equals(position)) continue;
@@ -41,17 +32,18 @@ function MxAnalysisCache()
 		}
 		return null;
 	}	
-	this.CacheAnalysis = function cacheAnalysis(player, depth, position, analysis)
-	{
-		var myentry = new Object();
-		myentry.Depth = depth;
-		myentry.Position = position.Clone();
-		myentry.Analysis = analysis;
-		if (this.Cursor >= analysisCacheSize) this.Cursor=0;
-		this.Nodes[this.Cursor] = myentry;
+	this.Set = function(player, depth, position, analysis) {
+	    if (this.Cursor >= ANALYSIS_CACHE_SIZE) 
+	        this.Cursor=0;
+	    this.Entries[this.Cursor] = {
+	        Depth: depth,
+	        Position: position.Clone(),
+	        Analysis: analysis
+	    };
 		this.Cursor++;
 	}	
 }
+var analysisCache = new MxAnalysisCache();
 
 function MxPositionAnalysis(dynamicValue, staticValue, potentialValue, bestMove)
 {
@@ -63,87 +55,74 @@ function MxPositionAnalysis(dynamicValue, staticValue, potentialValue, bestMove)
 function MxPosition()
 {
 	//create the initial board
-	this.Nodes = new Array();	
-	for (var sq=0; sq<=40; sq = NextSquare(sq))
+	this.Nodes = [];	
+	for (let sq=0; sq<=40; sq = NextSquare(sq))
 	{
 		this.Nodes[sq] = 1; //white pawn
 	}
-	for (var sq=40; sq<60; sq = NextSquare(sq))
+	for (let sq=40; sq<60; sq = NextSquare(sq))
 	{
 		this.Nodes[sq] = 0; //no mans land
 	}
-	for (var sq=60; sq<100; sq = NextSquare(sq))
+	for (let sq=60; sq<100; sq = NextSquare(sq))
 	{
 		this.Nodes[sq] = -1; //black pawns
 	}	
 	
-	this.LegalMovesX = function(player, square, direction, captureMode)
-	{
-		try
-		{
-			var legalMoves = new Array();
-			for (var sq=0; sq<100; sq=NextSquare(sq))
-			{
-				var man = this.Nodes[sq];
-				if (!(player*man>0 && (square==sq || square==null))) continue;
-				for ( var dir=0; dir<4; dir++ )
-				{				
-					if (!((IsLegalDirection(player, dir) || IsKing(man) || captureMode) && (direction==dir || direction==null))) continue;
-					if (captureMode)
-					{
-						var moveSegment = new Array();					
-						var capture = this.GetCapture(sq, dir);
-						var perpendicularContinuationsFound=false;
-						var lastLandingSquare = null;
-						if (capture==null) continue;						
-						do
-						{						
-							perpendicularContinuationsFound=false;
-							moveSegment = moveSegment.concat(capture);
-							this.ExecuteMove(capture);
-							lastLandingSquare = moveSegment[moveSegment.length-3];
-							do
-							{
-								var legalContinuations = this.LegalMovesX(player, TerminalSquare(moveSegment), PreviousDirection(dir), true);
-								legalContinuations = legalContinuations.concat(this.LegalMovesX(player, TerminalSquare(moveSegment), NextDirection(dir), true));
-								for (var m in legalContinuations)
-								{
-									legalMoves[legalMoves.length] = NormalizeMove(moveSegment.concat(legalContinuations[m]));
-									perpendicularContinuationsFound = true;
-								}
-							}	
-							while (this.AdvanceTerminalSquare(moveSegment, dir)); //attempts to advance terminal square forward by 1 and re-execute
-							capture = this.GetCapture(TerminalSquare(moveSegment), dir);						
-						}
-						while (capture != null);
-						if (!perpendicularContinuationsFound)
-						{
-							legalMoves[legalMoves.length] = NormalizeMove(moveSegment);
-							while (TerminalSquare(moveSegment) !== lastLandingSquare)
-							{
-								var bb = this.AdvanceTerminalSquare(moveSegment, OppositeDirection(dir)); 
-								legalMoves[legalMoves.length] = NormalizeMove(moveSegment);
-							}
-						}						
-						this.UndoMove(NormalizeMove(moveSegment));						
-					}
-					else //non capture mode
-					{
-						var nextSquare = NextSquare(sq, dir, 1);
-						while (this.IsFreeSquare(nextSquare))
-						{
-							legalMoves[legalMoves.length] = NormalizeMove(new Array(sq, man, 0, nextSquare, 0, man));
-							if (!IsKing(man)) break;
-							nextSquare = NextSquare(nextSquare, dir, 1);
-						}					
-					}
-				}						
-			}
-			return legalMoves;
-		}
-		catch (err) {alert('LegalMovesX Error: '+err); }
-	}
-	this.LegalMoves = function(player)
+	this.LegalMovesX = function(player, square, direction, captureMode) {
+        try {
+            var legalMoves = new Array();
+            for (var sq = 0; sq < 100; sq = NextSquare(sq)) {
+                var man = this.Nodes[sq];
+                if (!(player * man > 0 && (square === sq || square == null))) continue;
+                for (var dir = 0; dir < 4; dir++) {
+                    if (!((IsLegalDirection(player, dir) || IsKing(man) || captureMode) && (direction === dir || direction == null))) continue;
+                    if (captureMode) {
+                        var moveSegment = new Array();
+                        var capture = this.GetCapture(sq, dir);
+                        var perpendicularContinuationsFound = false;
+                        var lastLandingSquare = null;
+                        if (capture == null) continue;
+                        do {
+                            perpendicularContinuationsFound = false;
+                            moveSegment = moveSegment.concat(capture);
+                            this.ExecuteMove(capture);
+                            lastLandingSquare = moveSegment[moveSegment.length - 3];
+                            do {
+                                var legalContinuations = this.LegalMovesX(player, TerminalSquare(moveSegment), PreviousDirection(dir), true);
+                                legalContinuations = legalContinuations.concat(this.LegalMovesX(player, TerminalSquare(moveSegment), NextDirection(dir), true));
+                                for (let continuation of legalContinuations) {
+                                    legalMoves[legalMoves.length] = NormalizeMove(moveSegment.concat(continuation));
+                                    perpendicularContinuationsFound = true;
+                                }
+                            } while (this.AdvanceTerminalSquare(moveSegment, dir)); //attempts to advance terminal square forward by 1 and re-execute
+                            capture = this.GetCapture(TerminalSquare(moveSegment), dir);
+                        } while (capture != null);
+                        if (!perpendicularContinuationsFound) {
+                            legalMoves[legalMoves.length] = NormalizeMove(moveSegment);
+                            while (TerminalSquare(moveSegment) !== lastLandingSquare) {
+                                var bb = this.AdvanceTerminalSquare(moveSegment, OppositeDirection(dir));
+                                legalMoves[legalMoves.length] = NormalizeMove(moveSegment);
+                            }
+                        }
+                        this.UndoMove(NormalizeMove(moveSegment));
+                    } else //non capture mode
+                    {
+                        var nextSquare = NextSquare(sq, dir, 1);
+                        while (this.IsFreeSquare(nextSquare)) {
+                            legalMoves[legalMoves.length] = NormalizeMove(new Array(sq, man, 0, nextSquare, 0, man));
+                            if (!IsKing(man)) break;
+                            nextSquare = NextSquare(nextSquare, dir, 1);
+                        }
+                    }
+                }
+            }
+            return legalMoves;
+        } catch (err) {
+            alert('LegalMovesX Error: ' + err);
+        }
+    }
+    this.LegalMoves = function(player)
 	{
 		try
 		{
@@ -154,60 +133,67 @@ function MxPosition()
 		}
 		catch (err)	{alert('Legal Moves generation error: '+err); }
 	}
-	this.Clone = function()
-	{
-		var p = new MxPosition;
-		for (var s=0; s<100; s=NextSquare(s)) {p.Nodes[s] = this.Nodes[s];}
-		return p;		
-	};
+    this.Clone = function() {
+        var p = new MxPosition;
+        for (let s = 0; s < 100; s = NextSquare(s)) {
+            p.Nodes[s] = this.Nodes[s];
+        }
+        return p;
+    }
 	this.Equals = function(pos)
 	{
-		for (var s=0; s<100; s=NextSquare(s)) { if (pos.Nodes[s] != this.Nodes[s]) return false;}
+		for (let s=0; s<100; s=NextSquare(s)) { if (pos.Nodes[s] !== this.Nodes[s]) return false;}
 		return true;
-	};
+	}
 	this.Analysis = function(player, depth, parentBestValue, parentDepth, untilQuiescent)
     { 	
     	try
     	{
     		var legalMoves = this.LegalMoves(player);
-    		if (legalMoves.length === 0) return new MxPositionAnalysis(minimumPositionValue, minimumPositionValue, minimumPositionValue, null);
-    		if (depth >= minAnalysisCacheDepth && useAnalysisCache)
+    		if (legalMoves.length === 0) 
+    		    return new MxPositionAnalysis(MIN_POSITION_VALUE, MIN_POSITION_VALUE, MIN_POSITION_VALUE, null);
+    		if (depth >= MIN_ANALYSIS_CACHE_DEPTH && USE_ANALYSIS_CACHE)
     		{
-    			var cachedAnalysis = AnalysisCache.RetrieveAnalysis(player, depth, this);
-    			if (cachedAnalysis != null) return cachedAnalysis;
+    			var cachedAnalysis = analysisCache.Get(player, depth, this);
+    			if (cachedAnalysis != null) 
+    			    return cachedAnalysis;
     		}
     		if (depth === 0)
     		{
-				if (!(untilQuiescent && parentDepth < maximumSearchDepth && CaptureCount(legalMoves[0]) > 0)) 
-	    			return new MxPositionAnalysis(this.StaticValue(player), this.StaticValue(player), minimumPositionValue, legalMoves[0]);
+				if (!(untilQuiescent && parentDepth < MAX_SEARCH_DEPTH && CaptureCount(legalMoves[0]) > 0)) 
+	    			return new MxPositionAnalysis(this.StaticValue(player), this.StaticValue(player), MIN_POSITION_VALUE, legalMoves[0]);
 	    		else
-	    			depth = quiescenceExtensionDepth;			
+	    			depth = QUIESCENCE_EXTENSION_DEPTH;			
     		}    	
-    		var bestValue = maximumPositionValue;
-    		var bestPotentialValue = maximumPositionValue;
+    		var bestValue = MAX_POSITION_VALUE;
+    		var bestPotentialValue = MAX_POSITION_VALUE;
     		var bestChildMove = null;
     		var myPotentialValue = 0;
     		
     		var hit = false;
-    		for (var m in legalMoves)
+    		for (let mv of legalMoves)
     		{
-    			this.ExecuteMove(legalMoves[m]);
+    		    this.ExecuteMove(mv);
     			var analysis = this.Analysis(-player, depth-1, bestValue, parentDepth+1, untilQuiescent);
-    			this.UndoMove(legalMoves[m]);
+    			this.UndoMove(mv);
     			myPotentialValue += analysis.PotentialValue;
-    			if (analysis.DynamicValue < bestValue || (analysis.DynamicValue==bestValue && analysis.PotentialValue<bestPotentialValue)) 
+
+    			if (analysis.DynamicValue < bestValue || (analysis.DynamicValue === bestValue && analysis.PotentialValue < bestPotentialValue)) 
     			{
     				bestValue = analysis.DynamicValue;
     				bestPotentialValue = analysis.PotentialValue;
-    				bestChildMove = legalMoves[m];
+    				bestChildMove = mv;
     				hit = true;
     			}
-    			if ((-bestValue >= parentBestValue) && useAlphaBetaPruning) break;    
+    			if ((-bestValue >= parentBestValue) && USE_ALPHA_BETA_PRUNING) 
+    			    break;    
     		}
     		if (hit === false) 
     		    console.log('not hit');
+
     		var myAnalysis = new MxPositionAnalysis(-bestValue, this.StaticValue(player), -myPotentialValue, bestChildMove);
-    		if (useAnalysisCache) AnalysisCache.CacheAnalysis(player, depth, this, myAnalysis);
+    		if (USE_ANALYSIS_CACHE) 
+    		    analysisCache.Set(player, depth, this, myAnalysis);
     		return myAnalysis;
     	}
     	catch (err) {alert ('Error performing analysis: '+err); }
@@ -216,11 +202,11 @@ function MxPosition()
     this.ValueProfile = function(player)
 	{
 		var valueProfile = new Array();
-		for (var d=0; d<minimumSearchDepth; d++)
+		for (var d=0; d<MIN_SEARCH_DEPTH; d++)
 		{
-			valueProfile[d] = this.DynamicValue(player, d, maximumPositionValue, 0, false);			
+			valueProfile[d] = this.DynamicValue(player, d, MAX_POSITION_VALUE, 0, false);			
 		}
-		valueProfile[minimumSearchDepth] = this.DynamicValue(player, d, maximumPositionValue, 0, useQuiescenceSearch);			
+		valueProfile[MIN_SEARCH_DEPTH] = this.DynamicValue(player, d, MAX_POSITION_VALUE, 0, USE_QUIESCENCE_SEARCH);			
 		return valueProfile;
     }
 
@@ -249,7 +235,7 @@ function MxPosition()
 	    	if (AreComrades(this.Nodes[sq], player) || player==null) c++;
 	    }
 	    return c;
-	};	
+	}
 	this.StaticValue = function(player)
     {
     	return this.ManCount(player) - this.ManCount(-player); 
@@ -258,13 +244,14 @@ function MxPosition()
 	{
 		try
 		{
-			var mycapture = null;
-			var man = this.Nodes[square];
-			var nextSquare = NextSquare(square, direction, 1);
-			if (IsKing(man))
+		    let mycapture = null;
+		    var man = this.Nodes[square];
+		    let nextSquare = NextSquare(square, direction, 1);
+		    if (IsKing(man))
 			{
-				while (this.IsFreeSquare(nextSquare))	
-					{nextSquare = NextSquare(nextSquare, direction, 1);}
+			    while (this.IsFreeSquare(nextSquare)) {
+			        nextSquare = NextSquare(nextSquare, direction, 1);
+			    }
 			}
 			var landingSq = NextSquare(nextSquare, direction, 1);			
 			if ((this.Nodes[nextSquare] * man < 0) && this.IsFreeSquare(landingSq))
@@ -274,7 +261,7 @@ function MxPosition()
 			return mycapture;
 		}
 		catch (err) {alert('GetCapture error'+err); }
-	};
+	}
 	this.ExecuteMove = function(move)
 	{
 		try
@@ -291,12 +278,14 @@ function MxPosition()
 		}
 		catch (err){ alert('UndoMove Error: '+ err); }
 	}
-	this.AdvanceTerminalSquare = function advanceTerminalSquare(move, dir)
+	this.AdvanceTerminalSquare = function(move, dir)
 	{
 		try
 		{
 			var finalMan = move[move.length-1];
-			if (this.Nodes[move[move.length-3]] !== finalMan) alert('AdvanceTerminalSquare problem');
+			if (this.Nodes[move[move.length-3]] !== finalMan) 
+			    alert('AdvanceTerminalSquare problem');
+
 			if (!IsKing(finalMan)) return false;
 			if (this.IsFreeSquare(NextSquare(TerminalSquare(move),dir,1)))
 			{
@@ -311,38 +300,37 @@ function MxPosition()
 		catch (err) {alert('AdvanceTerminalSquare error'+err); }
 	}
 }
-
 function MxGame() {
-    this.MoveHistory = new Array();
+    this.MoveHistory = [];
 	this.Position = new MxPosition();
 	this.Turn = -1;
 
 	this.BestMove = function()
 	{
-		return this.Position.Analysis(this.Turn, minimumSearchDepth, maximumPositionValue, 0, useQuiescenceSearch).BestMove;
+		return this.Position.Analysis(this.Turn, MIN_SEARCH_DEPTH, MAX_POSITION_VALUE, 0, USE_QUIESCENCE_SEARCH).BestMove;
 	}
+
 	this.TryAcceptMove = function(startSquare, endSquare)
 	{
-		var legalMoves = this.Position.LegalMoves(this.Turn);
-		for (var m in legalMoves)
+		for (let mv of this.Position.LegalMoves(this.Turn))
 		{
-			var move = legalMoves[m];
-		    if (move[0] === startSquare && move[move.length - 3] === endSquare) {
-		        this.Position.ExecuteMove(move);
-		        this.MoveHistory[this.MoveHistory.length] = move;
+		    if (mv[0] === startSquare && mv[mv.length - 3] === endSquare) {
+		        this.Position.ExecuteMove(mv);
+		        this.MoveHistory.push(mv);
 		        return true;
 		    }
 		}
 		return false;				
 	}
 }
+
 function NormalizeMove(move) 
 {
 	try
 	{
 		var rootMan = move[1];	
 		var mv = new Array(move[0],move[1],move[2]);
-		for (var x=3; x < move.length-3; x+=3)
+		for (let x=3; x < move.length-3; x+=3)
 		{
 			if (!AreComrades(rootMan, move[x+1]) && !AreComrades(rootMan, move[x+2]))
 			{
@@ -354,8 +342,9 @@ function NormalizeMove(move)
 		mv[mv.length] = move[move.length-3];
 		mv[mv.length] = move[move.length-2];
 		mv[mv.length] = move[move.length-1];
-		//crown if neccesary
-		if (!IsKing(mv[mv.length-1]) && ((rootMan==1 && mv[mv.length-3]>=91) || (rootMan==-1 && mv[mv.length-3]<=8)))	
+		
+	    //crown if neccesary
+		if (!IsKing(mv[mv.length-1]) && ((rootMan === 1 && mv[mv.length-3]>=91) || (rootMan === -1 && mv[mv.length-3]<=8)))	
 		{
 			mv[mv.length-1] = mv[mv.length-1]*10;
 		}
@@ -375,10 +364,10 @@ function NextSquare(sq, dir, steps)
 	    if (steps==null) steps=1;
 		switch (dir)
 		{
-			case northEast: return sq+9*steps;
-			case southEast: return sq-11*steps;
-			case southWest: return sq-9*steps;
-			case northWest: return sq+11*steps;
+			case NORTH_EAST: return sq+9*steps;
+			case SOUTH_EAST: return sq-11*steps;
+			case SOUTH_WEST: return sq-9*steps;
+			case NORTH_WEST: return sq+11*steps;
 			default: 
 			{
 				switch (sq.toString().charAt(sq.toString().length-1))
@@ -392,27 +381,26 @@ function NextSquare(sq, dir, steps)
 	}
 	catch (err) {alert('NextSquare error:'+err); }
 }
+
 function CaptureCount(move){ return (move.length/3) - 2; }
 function IsKing(man){return (man*man > 1);}
 function AreComrades(man1, man2) { return (man1*man2 > 0); }
 function OppositeDirection(direction) { return (direction + 2) % 4; }
 function NextDirection(direction) { return (direction+1)%4; }
 function PreviousDirection(direction) { return OppositeDirection(NextDirection(direction)); }
-function IsLegalDirection(player, dir){	return ((player === 1)?(dir === northEast || dir === northWest): (dir === southEast || dir === southWest)); }
-
-function Stealth(valueProfile)
-{
-	return valueProfile.avg() - valueProfile.last();
-}
-
-//function negaStealth(valueProfile)
-//{
-//    return valueProfile.avg() - valueProfile.last();
-//}
-//function posiStealth(valueProfile)
-//{
-//    return valueProfile.avg() - valueProfile.last();
-//}
+function IsLegalDirection(player, dir){	return ((player === 1)?(dir === NORTH_EAST || dir === NORTH_WEST): (dir === SOUTH_EAST || dir === SOUTH_WEST)); }
 
 
-export default MxGame;
+export {
+    MIN_SEARCH_DEPTH,
+    MAX_SEARCH_DEPTH,
+    USE_QUIESCENCE_SEARCH,
+    USE_ALPHA_BETA_PRUNING,
+    USE_ANALYSIS_CACHE,
+    ANALYSIS_CACHE_SIZE,
+    MIN_ANALYSIS_CACHE_DEPTH,
+    MIN_POSITION_VALUE,
+    MAX_POSITION_VALUE,
+    QUIESCENCE_EXTENSION_DEPTH,
+    MxGame as default
+};
