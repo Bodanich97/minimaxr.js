@@ -1,0 +1,55 @@
+.half_transparent {
+    -khtml-opacity: .50;
+    -moz-opacity: .50;
+    -ms-filter: "alpha(opacity=50)";
+    -ms-opacity: .50;
+    filter: alpha(opacity=50);
+    opacity: .50;
+}
+
+.mainfont, .default_font {
+    font-family: Tahoma;
+    font-size: smaller;
+    font-variant: normal;
+    font-weight: normal;
+    color: Navy;
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+table.defined {
+    border-top-style: solid;
+    border-right-style: solid;
+    border-left-style: solid;
+    border-bottom-style: solid;
+    background-color: #ffffcc;
+}
+
+.smallfont {
+    font-family: Tahoma;
+    font-size: smaller;
+}
+
+.err {
+    color: #ff6666;
+    font-family: Tahoma;
+    font-size: smaller;
+}
+
+.mainheader {
+    font-family: Tahoma;
+    font-size: small;
+    font-variant: normal;
+    font-weight: bold;
+    color: Gray;
+}
+
+.subheader {
+    font-family: Tahoma;
+    font-size: smaller;
+    font-variant: normal;
+    font-weight: normal;
+    color: Gray;
+}
