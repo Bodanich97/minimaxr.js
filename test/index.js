@@ -50,7 +50,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
     function createView() {
         try {
             //setting turn status
-            document.getElementById('imgTurn').src = game.Turn === 1 ? 'assets/beige-pawn.PNG' : 'assets/brown-pawn.PNG';
+            document.getElementById('imgTurn').src = game.Turn === 1 ? 'assets/white-pawn.PNG' : 'assets/black-pawn.PNG';
 
             //creating move history view
             (0, _jquery2.default)('#tblMoves').empty();
